@@ -23,7 +23,7 @@ def load_model(model_path, model_type="ppo", vec_normalize_path=None):
     
     return model, vec_normalize_path
  
-def test_model(model, vec_normalize_path=None, num_episodes=5, size=5.0, num_obstacles=9, render=True, record=False):
+def test_model(model, vec_normalize_path=None, num_episodes=5, size=5.0, num_obstacles=13, render=True, record=False):
     """Test a trained model in the environment"""
     # Create the environment
     env = GridWorldEnv(render_mode="human" if render else None, size=size, num_obstacles=num_obstacles)
@@ -267,7 +267,7 @@ if __name__ == "__main__":
                         help="Path to saved VecNormalize stats (used with PPO/A2C)")
     parser.add_argument("--episodes", type=int, default=5, help="Number of test episodes")
     parser.add_argument("--size", type=float, default=5.0, help="Size of the grid world")
-    parser.add_argument("--obstacles", type=int, default=3, help="Number of obstacles")
+    parser.add_argument("--obstacles", type=int, default=13, help="Number of obstacles")
     parser.add_argument("--no-render", action="store_true", help="Disable rendering")
     parser.add_argument("--record", action="store_true", help="Record a GIF of an episode")
     parser.add_argument("--visualize-policy", action="store_true", 

@@ -19,7 +19,6 @@ class GridWorldEnv(gym.Env):
         # Observation space: character position (x, y), goal position (x, y),
         # distance to nearest obstacle (1), and for each obstacle: position (x, y) and velocity components (vx, vy)
         self.num_obstacles = num_obstacles
-        print(f"Creating an environment. Number of obstacles:{self.num_obstacles}")
         
         # Calculate single state size - now including distance to nearest obstacle
         self.single_state_size = 4 + 1 + num_obstacles * 4  # character (x,y), goal (x,y), nearest obstacle distance, obstacles (x,y,vx,vy) for each

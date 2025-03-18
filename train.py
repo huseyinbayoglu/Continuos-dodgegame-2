@@ -9,7 +9,7 @@ from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback
 
 from env import GridWorldEnv
 
-def create_env(render_mode=None, size=5.0, num_obstacles=13):
+def create_env(render_mode=None, size=5.0, num_obstacles=3):
     env = GridWorldEnv(render_mode=render_mode, size=size, num_obstacles=num_obstacles)
     return Monitor(env)
 
@@ -194,11 +194,11 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Train RL agents on GridWorld")
-    parser.add_argument("--algorithm", type=str, default="ppo", choices=["ppo", "dqn", "a2c"], 
+    parser.add_argument("--algorithm", type=str, default="dqn", choices=["ppo", "dqn", "a2c"], 
                         help="RL algorithm to use")
     parser.add_argument("--timesteps", type=int, default=1000000, 
                         help="Total timesteps for training")
-    parser.add_argument("--obstacles", type=int, default=13, 
+    parser.add_argument("--obstacles", type=int, default=3, 
                         help="Number of obstacles in the environment")
     parser.add_argument("--size", type=float, default=5.0, 
                         help="Size of the grid world")
@@ -226,4 +226,4 @@ if __name__ == "__main__":
  
 
 # python3 train.py --algorithm dqn --timesteps 1000000 --obstacles 13 --size 5.0
-# python3 train.py --algorithm ppo --timesteps 1000000 --obstacles 13 --size 5.0
+# python3 train.py --algorithm ppo --timesteps 500000 --obstacles 13 --size 5.0

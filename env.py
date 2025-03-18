@@ -6,7 +6,7 @@ import math
 
 
 class GridWorldEnv(gym.Env):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 120}
 
     def __init__(self, render_mode=None, size=5.0, num_obstacles=13):
         super().__init__()
@@ -17,22 +17,25 @@ class GridWorldEnv(gym.Env):
         self.action_space = spaces.Discrete(5)
 
         # Observation space: character position (x, y), goal position (x, y),
-        # distance to nearest obstacle (1), and for each obstacle: position (x, y) and velocity components (vx, vy)
+        # For each of the 3 closest obstacles: x-distance, y-distance, linear distance
+        # and for each obstacle: position (x, y) and velocity components (vx, vy)
         self.num_obstacles = num_obstacles
+        print(f"Creating an environment. Number of obstacles:{self.num_obstacles}")
         
-        # Calculate single state size - now including distance to nearest obstacle
-        self.single_state_size = 4 + 1 + num_obstacles * 4  # character (x,y), goal (x,y), nearest obstacle distance, obstacles (x,y,vx,vy) for each
+        # Calculate single state size - now including detailed info for 3 closest obstacles
+        # Character (x,y), goal (x,y), 3 closest obstacles (x-dist, y-dist, linear dist), all obstacles (x,y,vx,vy)
+        self.single_state_size = 4 + 9 + num_obstacles * 4
         
         # For history of 3 states
         obs_size = self.single_state_size * 3
         
         self.observation_space = spaces.Box(
-            low=0, high=size, shape=(obs_size,), dtype=np.float32
+            low=-size, high=size, shape=(obs_size,), dtype=np.float32
         )
 
         # Character and obstacle velocities
         self.character_velocity = 0.15
-        self.obstacle_velocity = 0.15
+        self.obstacle_velocity = 0.12
 
         # Character, goal, and obstacle sizes (radius)
         self.character_size = 0.15
@@ -57,6 +60,40 @@ class GridWorldEnv(gym.Env):
         self.max_steps = 500
         self.current_step = 0
 
+    def _get_three_closest_obstacles_info(self):
+        # Calculate distances and information for all obstacles
+        obstacle_info = []
+        
+        for i in range(self.num_obstacles):
+            # Calculate x and y distances (can be negative)
+            x_dist = self._obstacle_positions[i][0] - self._character_position[0]
+            y_dist = self._obstacle_positions[i][1] - self._character_position[1]
+            
+            # Calculate linear distance (accounting for obstacle size)
+            linear_dist = np.linalg.norm([x_dist, y_dist])
+            
+            # Ensure we don't have negative distances due to overlap
+            # linear_dist = max(0, linear_dist)
+            
+            obstacle_info.append((x_dist, y_dist, linear_dist))
+
+        # Sort obstacles by linear distance
+        obstacle_info.sort(key=lambda x: x[2])
+        
+        # Get information for the three closest obstacles
+        closest_three = obstacle_info[:3]
+        
+        # If there are fewer than 3 obstacles, pad with zeros
+        while len(closest_three) < 3:
+            closest_three.append((0.0, 0.0, float('inf')))
+            
+        # Flatten the list of tuples
+        result = []
+        for info in closest_three:
+            result.extend(info)
+            
+        return np.array(result, dtype=np.float32)
+
     def _get_nearest_obstacle_distance(self):
         # Calculate distance to the nearest obstacle
         obstacle_distances = [
@@ -66,15 +103,15 @@ class GridWorldEnv(gym.Env):
         return min(obstacle_distances) if obstacle_distances else float('inf')
 
     def _get_current_state(self):
-        # Get distance to nearest obstacle
-        nearest_obstacle_distance = self._get_nearest_obstacle_distance()
+        # Get detailed information about the three closest obstacles
+        three_closest_info = self._get_three_closest_obstacles_info()
         
         # Concatenate basic information
         state = np.concatenate(
             [
                 self._character_position,
                 self._goal_position,
-                np.array([nearest_obstacle_distance]),  # Add nearest obstacle distance
+                three_closest_info,  # Add detailed obstacle information
             ]
         )
 
@@ -233,7 +270,7 @@ class GridWorldEnv(gym.Env):
             terminated = True
         elif goal_reached:
             # Reward for reaching goal
-            reward = 10
+            reward = 50
             terminated = True
         else:
             # Ongoing dynamics: reward for getting closer to goal and staying away from obstacles

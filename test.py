@@ -471,7 +471,7 @@ def create_trajectory_plot(model, env, vec_normalize_path=None, size=5.0, obstac
     print("Trajectory visualization saved as 'agent_trajectories.png'")
 
 
-# python3 test.py --model-path ./models/dqn_model_1000000_steps.zip --model-type dqn --vec-normalize ./models/vec_normalize.pkl --episodes 15 --obstacles 13
+# python3 test.py --model-path ./models/dqn_model_240000_steps.zip --model-type dqn --vec-normalize ./models/vec_normalize.pkl --episodes 15 --obstacles 13
 # python3 test.py --model-path ./models/iyidqn.zip --model-type dqn --vec-normalize ./models/vec_normalize.pkl --episodes 1 --obstacles 13 --visualize-policy
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test a trained RL agent in GridWorld")

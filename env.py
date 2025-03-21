@@ -16,19 +16,19 @@ class GridWorldEnv(gym.Env):
         # Action space: left, right, up, down, do nothing
         self.action_space = spaces.Discrete(5)
 
-        # Observation space: character position (x, y), goal position (x, y),
-        # For each of the 3 closest obstacles: x-distance, y-distance, linear distance
-        # and for each obstacle: position (x, y) and velocity components (vx, vy)
         self.num_obstacles = num_obstacles
-        print(f"Creating an environment. Number of obstacles:{self.num_obstacles}")
         
-        # Calculate single state size - now including detailed info for 3 closest obstacles
-        # Character (x,y), goal (x,y), 3 closest obstacles (x-dist, y-dist, linear dist), all obstacles (x,y,vx,vy)
-        self.single_state_size = 4 + 9 + num_obstacles * 4
+        # Calculate single state size - now including detailed info for all obstacles
+        # Character (x,y), goal (x,y), 3 closest obstacles (x-dist, y-dist, linear dist), 
+        # all obstacles (x,y,vx,vy,linear_dist)
+        self.single_state_size = 4 + 9 + num_obstacles * 7  # Added linear distance for each obstacle
         
         # For history of 3 states
         obs_size = self.single_state_size * 3
         
+        # Observation space: character position (x, y), goal position (x, y),
+        # For each of the 3 closest obstacles: x-distance, y-distance, linear distance
+        # and for each obstacle: position (x, y), velocity components (vx, vy), and linear distance
         self.observation_space = spaces.Box(
             low=-size, high=size, shape=(obs_size,), dtype=np.float32
         )
@@ -38,7 +38,7 @@ class GridWorldEnv(gym.Env):
         self.obstacle_velocity = 0.12
 
         # Character, goal, and obstacle sizes (radius)
-        self.character_size = 0.15
+        self.character_size = 0.13
         self.goal_size = 0.15
         self.obstacle_size = 0.12
 
@@ -47,6 +47,9 @@ class GridWorldEnv(gym.Env):
         self._goal_position = None
         self._obstacle_positions = None
         self._obstacle_velocities = None
+
+        # Initialize score
+        self.score = 0
         
         # State history buffer - will store last 3 states
         self._state_history = []
@@ -115,13 +118,19 @@ class GridWorldEnv(gym.Env):
             ]
         )
 
-        # Add obstacles positions and velocities
+        # Add obstacles positions, velocities, and linear distances
         for i in range(self.num_obstacles):
+            # Calculate linear distance to this obstacle
+            dx = self._character_position[0] - self._obstacle_positions[i][0]
+            dy = self._character_position[1] - self._obstacle_positions[i][1]
+            linear_dist = np.linalg.norm(self._character_position - self._obstacle_positions[i])
+            
             state = np.concatenate(
                 [
                     state,
                     self._obstacle_positions[i],
                     self._obstacle_velocities[i],
+                    [dx,dy,linear_dist],  # Add linear distance for each obstacle
                 ]
             )
 
@@ -157,12 +166,14 @@ class GridWorldEnv(gym.Env):
         return {
             "distance_to_goal": dist_to_goal,
             "closest_obstacle": closest_obstacle,
-            "step_count": self.current_step
+            "step_count": self.current_step,
+            "score": self.score
         }
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.current_step = 0
+        self.score = 0
         
         # Reset state history
         self._state_history = []
@@ -262,28 +273,25 @@ class GridWorldEnv(gym.Env):
         goal_reached = np.linalg.norm(self._character_position - self._goal_position) < (self.character_size + self.goal_size)
 
         # Calculate reward
-        reward = -.1
+        reward = -.4
+        terminated = False
         
         if collision:
             # Penalty for collision
-            reward = -10
+            reward = -40
             terminated = True
         elif goal_reached:
             # Reward for reaching goal
-            reward = 50
-            terminated = True
+            reward = 20
+            self.score += 1
+            self._place_target()
+            # terminated = True
         else:
             # Ongoing dynamics: reward for getting closer to goal and staying away from obstacles
             dist_to_goal = np.linalg.norm(self._character_position - self._goal_position)
             if dist_to_goal < first_distance:
                 reward = .3
             
-            
-            # Small penalty for being close to obstacles
-            """for i in range(self.num_obstacles):
-                obstacle_dist = np.linalg.norm(self._character_position - self._obstacle_positions[i])
-                if obstacle_dist < 1.0:
-                    reward -= 0.1 * (1.0 - obstacle_dist)"""
             
             terminated = False
         
@@ -292,7 +300,7 @@ class GridWorldEnv(gym.Env):
             terminated = True
         
         # In RL, 'truncated' is used for non-terminal timeout
-        truncated = False if terminated else (self.current_step >= self.max_steps)
+        truncated = False if terminated else (self.current_step >= self.max_steps or self.score >= 50)
 
         observation = self._get_obs()
         info = self._get_info()
@@ -360,11 +368,12 @@ class GridWorldEnv(gym.Env):
             # Display step count and distances
             step_text = font.render(f"Steps: {self.current_step}/{self.max_steps}", True, (255, 255, 255))
             goal_text = font.render(f"Goal Distance: {info['distance_to_goal']:.2f}", True, (255, 255, 255))
-            obstacle_text = font.render(f"Obstacle Distance: {info['closest_obstacle']:.2f}", True, (255, 255, 255))
-            
+            # obstacle_text = font.render(f"Obstacle Distance: {info['closest_obstacle']:.2f}", True, (255, 255, 255))
+            score_text = font.render(f"Score:{self.score}",True, (255, 255, 255))
             canvas.blit(step_text, (10, 10))
             canvas.blit(goal_text, (10, 40))
-            canvas.blit(obstacle_text, (10, 70))
+            # canvas.blit(obstacle_text, (10, 70))
+            canvas.blit(score_text, (10, 70))
             
             # Copy our drawings to the window
             self.window.blit(canvas, canvas.get_rect())
@@ -378,7 +387,18 @@ class GridWorldEnv(gym.Env):
             np.array(pygame.surfarray.pixels3d(canvas)), axes=(1, 0, 2)
         )
 
+    def _place_target(self):
+        while True:
+            self._goal_position = self.np_random.uniform(
+                low=np.array([0.1, 0.1]),  
+                high=np.array([self.size - 0.1, self.size - 0.1]), 
+                size=2
+            )
+            if np.linalg.norm(self._goal_position - self._character_position) > 1:
+                break
+
     def close(self):
         if self.window is not None:
             pygame.display.quit()
             pygame.quit()
+            

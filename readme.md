@@ -147,7 +147,7 @@ The DQN agent was trained using the `MlpPolicy` (Multi-Layer Perceptron) and the
 The agent was trained for a total of 500,000 timesteps using the following command:
 
 ```bash
-python train.py --algorithm dqn --obstacles 13 --timesteps 500000 --log-dir ./logs/DQN_RunName --save-dir ./models/DQN_RunName
+python train.py --algorithm dqn --obstacles 13 --timesteps 500000 --log-dir ./logs/DQN_RunName --save-dir ./models
 ```
 
 ## Installation
@@ -215,7 +215,7 @@ Beyond numerical metrics, `test.py` provides tools to visually understand the ag
     *   Using the `--record` flag generates an animated GIF (`navigation_agent.gif`) of a single test episode, clearly showing the agent's movement, obstacle avoidance (or lack thereof), and pathfinding.
     *   **Example Command (Record GIF):**
         ```bash
-        python test.py --model-path ./models/DQN_RunName/best_model.zip --model-type dqn --episodes 1 --obstacles 13 --record
+        python test.py --model-path ./models/best_model.zip --model-type dqn --episodes 1 --obstacles 13 --record
         ```
 
 2.  **Policy and Value Function Heatmaps (`--visualize-policy`):**

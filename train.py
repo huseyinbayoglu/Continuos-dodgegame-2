@@ -120,116 +120,110 @@ class LrLoggingCallback(BaseCallback):
                 print(f"Timestep: {self.num_timesteps} - Learning Rate: {learning_rate}")
         return True
 
-# Adding a new callback to log additional training metrics
-class TrainingMetricsCallback(BaseCallback):
-    def __init__(self, log_freq=100, verbose=1):
+class RolloutMetricsCallback(BaseCallback):
+    """
+    Rollout sırasında reward ve score değerlerini takip eden ve TensorBoard'a kaydeden özel callback.
+    """
+    def __init__(self, log_dir="./logs",log_freq = 1, verbose=1):
         super().__init__(verbose)
+        self.log_dir = log_dir
         self.log_freq = log_freq
-        self.episode_rewards = []
-        self.episode_lengths = []
-        self.episode_scores = []
-        self.current_episode_reward = 0
-        self.current_episode_length = 0
-        self.current_episode_score = 0
+        os.makedirs(log_dir, exist_ok=True)
+        
+        # Rollout metrikleri için gerekli değişkenler
         self.rollout_rewards = []
         self.rollout_scores = []
+        self.episode_reward = 0
+        self.current_score = 0
+        self.episodes_in_rollout = 0
+
+    def _on_training_start(self) -> None:
+        """Eğitim başladığında değişkenleri sıfırla."""
+        self.rollout_rewards = []
+        self.rollout_scores = []
+        self.episode_reward = 0
+        self.current_score = 0
+        self.episodes_in_rollout = 0
+        return True
 
     def _on_step(self) -> bool:
-        """Log training metrics at every step and log_freq steps."""
-        # Get info from the last step
-        if self.locals.get("dones") is not None:
-            dones = self.locals["dones"]
-            rewards = self.locals.get("rewards", [0])
-            infos = self.locals.get("infos", [{}])
-            
-            # Update episode tracking for rewards
-            reward_value = rewards[0] if isinstance(rewards, list) else rewards
-            self.current_episode_reward += reward_value
-            self.current_episode_length += 1
-            self.rollout_rewards.append(reward_value)
-            
-            # Get score from info dictionary - this is separate from reward
-            if isinstance(infos, list) and len(infos) > 0:
-                # Extract the score as a separate metric from the info dict
-                # Don't accumulate it - just record the current score value
-                score = infos[0].get("score", 0)
-                self.rollout_scores.append(score)
-                # Update the current episode score to the latest score
-                # (assuming score is cumulative in the environment)
-                self.current_episode_score = score
-                
-            # If episode is done, record metrics
-            if dones if isinstance(dones, bool) else dones[0]:
-                self.episode_rewards.append(self.current_episode_reward)
-                self.episode_lengths.append(self.current_episode_length)
-                self.episode_scores.append(self.current_episode_score)
-                
-                # Log episode metrics for TensorBoard
-                self.logger.record("train/episode_reward", self.current_episode_reward)
-                self.logger.record("train/episode_length", self.current_episode_length)
-                self.logger.record("train/episode_score", self.current_episode_score)
-                
-                # Reset episode tracking
-                self.current_episode_reward = 0
-                self.current_episode_length = 0
-                self.current_episode_score = 0
+        """Her adımda reward'ı topla ve env info'dan score'u al."""
+        # Reward bilgisini al
+        reward = self.locals.get('rewards')
+        if reward is not None:
+            if isinstance(reward, list):
+                reward = reward[0]  # Vektörleştirilmiş env için
+            self.episode_reward += reward
         
-        # Log additional metrics at regular intervals
-        if self.n_calls % self.log_freq == 0 and self.n_calls > 0:
-            # Log rollout statistics
-            if len(self.rollout_rewards) > 0:
-                mean_reward = np.mean(self.rollout_rewards)
-                std_reward = np.std(self.rollout_rewards)
-                self.logger.record("train/mean_rollout_reward", mean_reward)
-                self.logger.record("train/std_rollout_reward", std_reward)
-                self.rollout_rewards = []  # Reset after logging
+        # Env info'dan score bilgisini al
+        info = self.locals.get('infos')
+        if info is not None:
+            if isinstance(info, list) and len(info) > 0:
+                info = info[0]
             
-            # Log game score statistics
-            if len(self.rollout_scores) > 0:
-                mean_score = np.mean(self.rollout_scores)
-                max_score = np.max(self.rollout_scores) if len(self.rollout_scores) > 0 else 0
-                self.logger.record("train/mean_rollout_score", mean_score)
-                self.logger.record("train/max_rollout_score", max_score)
-                self.rollout_scores = []  # Reset after logging
-            
-            # Log averages over recent episodes
-            if len(self.episode_rewards) > 0:
-                # Calculate statistics over last 100 episodes or all if less than 100
-                recent_range = min(100, len(self.episode_rewards))
-                avg_reward = np.mean(self.episode_rewards[-recent_range:])
-                avg_length = np.mean(self.episode_lengths[-recent_range:])
-                avg_score = np.mean(self.episode_scores[-recent_range:])
+            if 'score' in info:
+                self.current_score = info['score']
+        
+        # Episode bitişini kontrol et
+        dones = self.locals.get('dones')
+        if dones is not None:
+            if isinstance(dones, list):
+                done = dones[0]  # Vektörleştirilmiş env için
+            else:
+                done = dones
                 
-                self.logger.record("train/avg_reward_last_100", avg_reward)
-                self.logger.record("train/avg_length_last_100", avg_length)
-                self.logger.record("train/avg_score_last_100", avg_score)
+            if done:
+                # Episode bittiğinde reward ve score'u kaydet
+                self.rollout_rewards.append(self.episode_reward)
+                self.rollout_scores.append(self.current_score)
+                self.episodes_in_rollout += 1
                 
-                # Track best performance
-                if hasattr(self, 'best_avg_score'):
-                    if avg_score > self.best_avg_score:
-                        self.best_avg_score = avg_score
-                else:
-                    self.best_avg_score = avg_score
+                # Değişkenleri sıfırla
+                self.episode_reward = 0
                 
-                self.logger.record("train/best_avg_score", self.best_avg_score)
+                if self.verbose > 1:
+                    print(f"Episode {self.episodes_in_rollout} - Score: {self.current_score} - Reward: {self.rollout_rewards[-1]:.2f}")
+        
+        return True
+
+    def _on_rollout_end(self) -> None:
+        """
+        Her rollout sonunda metrikler hesaplanır ve TensorBoard'a kaydedilir.
+        """
+        if len(self.rollout_rewards) > 0:
+            # Rollout metriklerini hesapla
+            mean_reward = np.mean(self.rollout_rewards)
+            mean_score = np.mean(self.rollout_scores)
+            max_reward = np.max(self.rollout_rewards)
+            max_score = np.max(self.rollout_scores)
             
-            # Log exploration rate for DQN if available
-            if hasattr(self.model, "exploration_rate"):
-                self.logger.record("train/exploration_rate", self.model.exploration_rate)
+            # TensorBoard için kaydet
+            self.logger.record("rollout/mean_reward", mean_reward)
+            self.logger.record("rollout/mean_score", mean_score)
+            self.logger.record("rollout/max_reward", max_reward)
+            self.logger.record("rollout/max_score", max_score)
+            self.logger.record("rollout/episodes", self.episodes_in_rollout)
             
-            # Dump to ensure data is written to disk
+            # Standart sapma ve diğer istatistikler (en az 2 episode varsa)
+            if len(self.rollout_rewards) > 1:
+                reward_std = np.std(self.rollout_rewards)
+                score_std = np.std(self.rollout_scores)
+                self.logger.record("rollout/reward_std", reward_std)
+                self.logger.record("rollout/score_std", score_std)
+            
+            # TensorBoard için verileri kaydet
             self.logger.dump(self.num_timesteps)
             
             if self.verbose > 0:
-                print(f"Timestep: {self.num_timesteps}")
-                if len(self.episode_rewards) > 0:
-                    print(f"  Mean reward: {avg_reward:.2f}")
-                    print(f"  Mean score: {avg_score:.2f}")
-                    if hasattr(self, 'best_avg_score'):
-                        print(f"  Best avg score: {self.best_avg_score:.2f}")
+                print(f"Rollout end - Mean Score: {mean_score:.2f} - Mean Reward: {mean_reward:.2f} - Episodes: {self.episodes_in_rollout}")
+            
+            # Bir sonraki rollout için değişkenleri sıfırla
+            self.rollout_rewards = []
+            self.rollout_scores = []
+            self.episodes_in_rollout = 0
             
         return True
-       
+
 def create_env(render_mode=None, size=5.0, num_obstacles=3):
     env = GridWorldEnv(render_mode=render_mode, size=size, num_obstacles=num_obstacles)
     return Monitor(env)
@@ -343,7 +337,7 @@ def train_dqn(env_fn, total_timesteps=1000000, log_dir="./logs/", save_dir="./mo
     lr_callback = LrLoggingCallback(log_freq=100)
     
     # New training metrics callback
-    metrics_callback = TrainingMetricsCallback(log_freq=100)
+    metrics_callback = RolloutMetricsCallback(log_freq=100)
     
     # Pass an initial learning rate value to the scheduler
     initial_lr = 0.001  # Set your desired initial learning rate
@@ -470,6 +464,6 @@ if __name__ == "__main__":
     
  
 
-# python3 train.py --algorithm dqn --obstacles 13 --timesteps 1000000
+# python3 train.py --algorithm dqn --obstacles 13 --timesteps 4000000
 # python3 train.py --algorithm ppo --timesteps 500000 --obstacles 13 --size 5.0
 # tensorboard --logdir ./logs/DQN_3/

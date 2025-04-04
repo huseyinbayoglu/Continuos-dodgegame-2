@@ -72,13 +72,19 @@ class GridWorldEnv(gym.Env):
             x_dist = self._obstacle_positions[i][0] - self._character_position[0]
             y_dist = self._obstacle_positions[i][1] - self._character_position[1]
             
+            # Normalize x and y distances to -1 to 1 range
+            x_dist_norm = x_dist / self.size
+            y_dist_norm = y_dist / self.size
+
             # Calculate linear distance (accounting for obstacle size)
             linear_dist = np.linalg.norm([x_dist, y_dist])
             
-            # Ensure we don't have negative distances due to overlap
-            # linear_dist = max(0, linear_dist)
+            # Normalize linear distance: maximum possible distance is diagonal of grid sqrt(2*size^2)
+            max_distance = math.sqrt(2) * self.size
+            linear_dist_norm = linear_dist / max_distance
+
             
-            obstacle_info.append((x_dist, y_dist, linear_dist))
+            obstacle_info.append((x_dist_norm, y_dist_norm, linear_dist_norm))
 
         # Sort obstacles by linear distance
         obstacle_info.sort(key=lambda x: x[2])
@@ -88,7 +94,7 @@ class GridWorldEnv(gym.Env):
         
         # If there are fewer than 3 obstacles, pad with zeros
         while len(closest_three) < 3:
-            closest_three.append((0.0, 0.0, float('inf')))
+            closest_three.append((0.0, 0.0, 1))
             
         # Flatten the list of tuples
         result = []
@@ -109,28 +115,44 @@ class GridWorldEnv(gym.Env):
         # Get detailed information about the three closest obstacles
         three_closest_info = self._get_three_closest_obstacles_info()
         
+        # Normalize character and goal positions
+        char_pos_norm = self._character_position / self.size
+        goal_pos_norm = self._goal_position / self.size
+
         # Concatenate basic information
         state = np.concatenate(
             [
-                self._character_position,
-                self._goal_position,
+                char_pos_norm,
+                goal_pos_norm,
                 three_closest_info,  # Add detailed obstacle information
             ]
         )
 
+        # Maximum possible distance for normalization
+        max_distance = math.sqrt(2) * self.size
+
         # Add obstacles positions, velocities, and linear distances
         for i in range(self.num_obstacles):
+            # Normalize obstacle positions
+            obs_pos_norm = self._obstacle_positions[i] / self.size
+
             # Calculate linear distance to this obstacle
             dx = self._character_position[0] - self._obstacle_positions[i][0]
             dy = self._character_position[1] - self._obstacle_positions[i][1]
+
+            dx_norm = dx / self.size
+            dy_norm = dy / self.size
+
             linear_dist = np.linalg.norm(self._character_position - self._obstacle_positions[i])
-            
+            linear_dist_norm = linear_dist / max_distance
+
+
             state = np.concatenate(
                 [
                     state,
-                    self._obstacle_positions[i],
+                    obs_pos_norm,
                     self._obstacle_velocities[i],
-                    [dx,dy,linear_dist],  # Add linear distance for each obstacle
+                    [dx_norm,dy_norm,linear_dist_norm],  # Add linear distance for each obstacle
                 ]
             )
 

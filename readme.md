@@ -4,6 +4,8 @@
 
 ![Agent Demo GIF](gameplay.gif)
 
+*(This GIF is generated from the gameplay video recorded using `record_game.py`)*
+
 ## Table of Contents
 
 *   [Overview](#overview)
@@ -15,11 +17,14 @@
 *   [Agent & Training](#agent--training)
     *   [Algorithm: DQN](#algorithm-dqn)
     *   [Training Process & Monitoring](#training-process--monitoring)
-    *   [Library: Stable Baselines3](#library-stable-baselines3)
+    *   [Learning Rate Schedule](#learning-rate-schedule)
     *   [Hyperparameters](#hyperparameters)
+    *   [Training Execution](#training-execution) 
 *   [Installation](#installation)
 *   [Usage](#usage)
     *   [Training](#training)
+    *   [Testing & Evaluation](#testing--evaluation)
+    *   [Recording Gameplay](#recording-gameplay)
 *   [Evaluation & Analysis](#evaluation--analysis)
     *   [Quantitative Evaluation](#quantitative-evaluation)
     *   [Qualitative Evaluation & Visualization](#qualitative-evaluation--visualization)
@@ -139,22 +144,24 @@ The DQN agent was trained using the `MlpPolicy` (Multi-Layer Perceptron) and the
 
 ### Training Execution
 
-The agent was trained for a total of 500,000 timesteps using a command similar to:
+The agent was trained for a total of 500,000 timesteps using the following command:
 
 ```bash
 python train.py --algorithm dqn --obstacles 13 --timesteps 500000 --log-dir ./logs/DQN_RunName --save-dir ./models/DQN_RunName
+```
 
 ## Installation
 
 1.  Clone the repository:
-    
+    ```bash
     git clone https://github.com/huseyinbayoglu/Continuos-dodgegame-2
+    ```
     
     
 2.  Install dependencies (preferably in a virtual environment):
-    
+    ```bash
     pip install -r requirements.txt
-    
+    ```
 
 
 ## Usage
@@ -163,13 +170,26 @@ python train.py --algorithm dqn --obstacles 13 --timesteps 500000 --log-dir ./lo
 
 To train a new agent:
 
-
+```
 python train.py --timesteps 500000 
 ```
 
-## Evaluation & Analysis
+### Testing & Evaluation
 
 The trained DQN agent's performance was evaluated quantitatively and qualitatively using the `test.py` script.
+```bash
+python test.py --model-path ./models/best_model.zip --episodes 50 --obstacles 13 
+```
+
+### Recording Gameplay
+To record the agent's gameplay as an MP4 video:
+```bash
+python record_game.py --model_path ./models/best_model.zip --output gameplay.mp4 --episodes 5 --obstacles 13
+```
+
+
+## Evaluation & Analysis
+The trained DQN agent's performance was evaluated quantitatively and qualitatively using the test.py and record_game.py scripts.
 
 ### Quantitative Evaluation
 

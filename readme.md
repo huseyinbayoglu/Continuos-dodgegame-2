@@ -188,11 +188,6 @@ python record_game.py --model_path ./models/final_model_dqn.zip --output gamepla
 
 ## Evaluation & Analysis
 The trained DQN agent's performance was evaluated quantitatively and qualitatively using the test.py and record_game.py scripts.
-
-### Quantitative Evaluation
-
-The `test_model` function in `test.py` runs the trained agent in the environment for a specified number of episodes using a **deterministic policy** (i.e., always choosing the action with the highest predicted Q-value, without exploration).
-
 *   **Execution:** The script loads the saved DQN model (`.zip` file).
 *   **Metrics Reported:**
     *   **Average Reward per Episode:** The mean total reward accumulated across the evaluation episodes.
@@ -203,6 +198,45 @@ The `test_model` function in `test.py` runs the trained agent in the environment
     python test.py --model-path ./models/final_model_dqn.zip --model-type dqn --episodes 50 --obstacles 13 
     ```
 
+### Quantitative Evaluation
+
+The trained DQN agent's performance was rigorously evaluated using the `test.py` script. The evaluation ran the agent with a **deterministic policy** (no exploration noise) for **50 episodes** in the environment configured with **13 obstacles**.
+
+The key performance metrics achieved at the end of training are summarized below:
+
+*   **Average Score per Episode:** XX.X ± Y.Y  *(The agent successfully reached the target an average of XX.X times per episode, with a standard deviation of Y.Y)*
+*   **Average Reward per Episode:** AA.A ± B.B *(This reflects the cumulative reward considering both goal achievements and penalties.)*
+*   **Average Steps per Episode:** ZZZ.Z ± W.W *(Indicates how quickly, on average, the agent completed episodes, either by reaching a step limit or colliding.)*
+
+**(Buraya yukarıdaki gibi kendi test sonuçlarınızı ekleyin)**
+
+
+These results demonstrate the agent's capability to consistently achieve the objective. The learning progress over the 1 million training timesteps is visualized below:
+
+**Learning Progress: Mean Evaluation Score**
+![Mean Evaluation Score Over Training](images/eval_mean_score.svg)
+
+
+*The graph above shows the average score achieved during periodic evaluations (10 episodes, deterministic policy) approximately every 50 training episodes throughout the 1 million training timesteps. The clear upward trend demonstrates the agent's successful learning progress in mastering the task of reaching the target while avoiding obstacles.*
+
+**Peak Performance: Best Mean Evaluation Score**
+
+![Best Mean Evaluation Score Over Training](images/eval_best_mean_score.svg)
+
+*This graph tracks the best average evaluation score achieved up to each point in training, derived from the `eval/mean_score` data. It highlights the peak performance level reached and maintained by the agent as training progressed.*
+
+
+**Learning Progress: Mean Episode Length During Training**
+
+![Mean Episode Length During Training Rollouts](images/rollout_ep_len_mean.svg)
+
+*This plot displays the average episode length (number of steps) during the training rollouts (exploration phase). The increasing trend indicates that the agent learned to survive longer within the environment over time, suggesting improved obstacle avoidance and navigation skills were developed during exploration.*
+
+**Learning Progress: Mean Reward During Training**
+
+![Mean Reward During Training Rollouts](images/rollout_ep_rew_mean.svg)
+
+*The average reward collected per episode during training rollouts is shown above. The general upward trend, despite fluctuations due to exploration, reflects the agent's increasing ability to find rewarding trajectories (reaching goals more often, incurring fewer collision penalties) during the training process.*
 
 ### Qualitative Evaluation & Visualization
 
@@ -267,3 +301,5 @@ Potential improvements and future directions for this project include:
 * torch
 * tensorboard
 * opencv-python
+
+

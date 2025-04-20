@@ -243,6 +243,7 @@ def linear_lr_schedule(initial_value):
         return max(1e-8,progress_remaining * initial_value)
     
     return func
+
 def train_ppo(env_fn, total_timesteps=1000000, log_dir="./logs/", save_dir="./models/"):
     # Create directories
     os.makedirs(log_dir, exist_ok=True)
@@ -349,7 +350,7 @@ def train_dqn(env_fn, total_timesteps=1000000, log_dir="./logs/", save_dir="./mo
         verbose=1,
         tensorboard_log=log_dir,  # This is crucial for TensorBoard integration
         learning_rate=linear_lr_schedule(initial_lr),
-        buffer_size=100000,
+        buffer_size=100_000,
         learning_starts=1000,
         batch_size=64,
         gamma=0.99,

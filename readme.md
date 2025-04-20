@@ -47,30 +47,22 @@ The custom environment (`GridWorldEnv` in `env.py`) adheres to the OpenAI Gym (G
 The agent's goal is to reach the designated target position as quickly as possible while avoiding collisions with the linearly moving balls that bounce off the screen edges. The agent receives a score point each time it reaches the target, and the target relocates.
 
 ### State Space
-The observation provided to the agent is designed to give comprehensive information about the environment's current situation and recent history. It's a flattened vector representing the state from the **last 3 consecutive timesteps**.
+
+The observation provided to the agent is a flattened vector containing key information about the environment's **current timestep only**.
 
 *   **Type:** `gymnasium.spaces.Box` (Continuous)
-*   **Shape:** `( (4 + 9 + num_obstacles * 7) * 3, )`
-    *   `num_obstacles`: The number of obstacles in the environment (initialized as 13 in default).
-    *   `single_state_size = 4 + 9 + num_obstacles * 7` represents the information from a single timestep.
-    *   The `* 3` indicates the concatenation of the last three single-timestep states.
-*   **Bounds:** Values are generally normalized and clipped, mostly falling within the [-1, 1] range due to division by `self.size`, although the Box is defined with `low=-size, high=size`.
-*   **Structure of a Single Timestep State (`single_state_size` components):**
-    1.  **Character Position (2 values):** Normalized agent's (x, y) coordinates (`_character_position / self.size`).
-    2.  **Goal Position (2 values):** Normalized target's (x, y) coordinates (`_goal_position / self.size`).
-    3.  **3 Closest Obstacles Information (9 values):** For each of the three obstacles currently closest to the agent:
-        *   Normalized X-distance from obstacle to agent (`(obs_x - char_x) / self.size`).
-        *   Normalized Y-distance from obstacle to agent (`(obs_y - char_y) / self.size`).
-        *   Normalized Linear distance from obstacle to agent (`distance / max_distance`).
-        *(Obstacles are sorted by distance, and padded with `(0.0, 0.0, 1.0)` if fewer than 3 exist).*
-    4.  **All Obstacles Detailed Information (`num_obstacles * 7` values):** For *each* of the `num_obstacles` obstacles:
-        *   Normalized Obstacle Position (2 values): (x, y) coordinates (`_obstacle_positions[i] / self.size`).
-        *   Obstacle Velocity (2 values): (vx, vy) components (in environment units, not explicitly normalized in the state vector but magnitude is fixed).
-        *   Normalized Relative Distance to Character (3 values):
-            *   Normalized X-distance from character to obstacle (`(char_x - obs_x) / self.size`).
-            *   Normalized Y-distance from character to obstacle (`(char_y - obs_y) / self.size`).
-            *   Normalized Linear distance from character to obstacle (`distance / max_distance`).
-*   **State History:** The final observation vector fed to the agent is the concatenation of the single-timestep state vectors from the current timestep and the two preceding timesteps. This provides the agent with information about the recent dynamics of the environment (e.g., obstacle movement directions).
+*   **Shape:** `(2 + k * 4,)`
+    *   `k`: This is the `k_closest_obstacles` parameter specified during environment initialization (defaults to 7). It determines how many of the nearest obstacles are included in the state.
+    *   Example: If `k=7` (the default), the state vector size is `2 + 7 * 4 = 30`.
+*   **Bounds:** The observation space is defined with `low=-2.0` and `high=2.0` (`spaces.Box(low=-2.0, high=2.0, ...)`). Although values are generally normalized (positions divided by `self.size`, velocities by `self._max_obstacle_vel_norm`) to fall mostly within [-1, 1], these bounds provide some margin.
+*   **Structure (`2 + k * 4` components):**
+    1.  **Relative Goal Position (2 values):** The normalized vector from the agent to the target `(target_x - agent_x, target_y - agent_y) / self.size`. This indicates the direction and scaled distance to the goal.
+    2.  **`k` Closest Obstacles Information (`k * 4` values):** For each of the `k` obstacles nearest to the agent (sorted by distance):
+        *   **Relative Obstacle Position (2 values):** The normalized vector from the agent to the obstacle `(obstacle_x - agent_x, obstacle_y - agent_y) / self.size`.
+        *   **Obstacle Velocity (2 values):** The normalized velocity of the obstacle `(vx, vy) / self._max_obstacle_vel_norm`.
+*   **Padding:** If there are fewer than `k` obstacles in the environment, or fewer than `k` are found within a reasonable range, the remaining obstacle slots in the state vector are filled with predefined padding values. Typically, this padding represents a distant ([1.0, 1.0] normalized relative position) and stationary ([0.0, 0.0] normalized velocity) obstacle. This ensures the state vector always has a consistent size (`2 + k * 4`).
+*   **No Frame Stacking:** Unlike potential previous versions, this state representation **only includes information from the current timestep**. It does not concatenate states from previous steps. This simplifies the state but requires the agent to infer dynamics (like obstacle movement direction) implicitly through its learned policy or value function over time.
+
 
 ### Action Space
 
@@ -86,17 +78,23 @@ The agent can choose one of five discrete actions at each timestep.
 
 ### Reward Function
 
-The reward function is designed to guide the agent towards the goal while penalizing collisions and encouraging efficient movement. The reward is calculated at each step based on the following logic:
+The reward function is designed to guide the agent towards the goal efficiently while strongly penalizing collisions. The reward is calculated at each step based on the following logic:
 
-*   **Base Penalty (Per Step):** A small negative reward of `-0.4` is given by default in each step. This encourages the agent to complete the episode (either by reaching the target or failing) relatively quickly, discouraging indefinite wandering.
-*   **Collision Penalty:** If the agent collides with an obstacle (`collision == True`), it receives a large negative reward of `-40`. This strongly penalizes unsafe actions and terminates the current episode (`terminated = True`).
-*   **Goal Reached Reward:** If the agent successfully reaches the target (`goal_reached == True`), it receives a large positive reward of `+20`. Upon reaching the target, the agent's score increases by 1, and the target is immediately relocated to a new random position (`_place_target()`). The episode does *not* terminate immediately upon reaching the goal (allowing for multi-goal episodes within the step limit).
-*   **Movement Reward Shaping:** If the agent does *not* collide and does *not* reach the target in the current step:
-    *   If the agent **moved closer** to the target compared to its position at the beginning of the step (`dist_to_goal < first_distance`), the reward for that step is overridden to become `+0.3`. This positive reward shaping provides a denser guidance signal, helping the agent learn to approach the target even before achieving the large goal reward, which was crucial for overcoming the initial sparse reward problem.
-    *   If the agent **did not move closer** to the target, the reward remains the default base penalty of `-0.4`. There is no explicit *additional* penalty for moving away, but the agent misses out on the positive shaping reward.
+*   **Base Penalty (Per Step):** A small negative reward of `-0.01` is applied by default at every timestep. This encourages the agent to reach the goal or terminate via collision relatively quickly, discouraging inefficient wandering.
+*   **Collision Penalty:** If the agent collides with an obstacle (`collision == True`), it receives a large negative reward of `-20.0`. This strongly penalizes unsafe actions, and the episode terminates immediately (`terminated = True`).
+*   **Goal Reached Reward:** If the agent successfully reaches the target (`goal_reached == True`), it receives a large positive reward of `+50.0`. Upon reaching the target:
+    *   The agent's score increases by 1 (`self.score += 1`).
+    *   The target is immediately relocated to a new random position (`_place_target()`).
+    *   The episode does *not* terminate, allowing the agent to pursue multiple targets within the maximum step limit of a single episode.
+*   **Movement Reward Shaping (If No Collision or Goal Reach):** If the agent neither collides nor reaches the goal in the current step, a reward shaping component is calculated based on the change in distance to the goal:
+    *   The change in distance is calculated: `distance_change = first_distance - dist_to_goal` (where `first_distance` is the distance at the start of the step and `dist_to_goal` is the distance at the end).
+    *   This change is scaled and *added* to the base step penalty: `reward += distance_change * 0.5`.
+    *   **Outcome:**
+        *   If the agent **moved closer** to the target (`distance_change > 0`), a positive value is added to the `-0.01` base reward, rewarding progress towards the goal.
+        *   If the agent **moved farther** from the target (`distance_change < 0`), a negative value is added to the `-0.01` base reward, increasing the penalty for that step.
+        *   If the distance **did not change**, the reward for the step remains the base penalty of `-0.01`.
 
-This combination of large terminal rewards/penalties and dense movement-based reward shaping helps the agent learn the complex task of navigating towards a changing target while actively avoiding obstacles.
-
+This combination of large terminal rewards/penalties and dense, distance-based reward shaping helps the agent learn the complex task of navigating towards a changing target while actively avoiding obstacles and moving efficiently.
 ## Agent & Training
 
 ### Algorithm: DQN
@@ -144,10 +142,10 @@ The DQN agent was trained using the `MlpPolicy` (Multi-Layer Perceptron) and the
 
 ### Training Execution
 
-The agent was trained for a total of 500,000 timesteps using the following command:
+The agent was trained for a total of 1_000,000 timesteps using the following command:
 
 ```bash
-python train.py --algorithm dqn --obstacles 13 --timesteps 500000 --log-dir ./logs/DQN_RunName --save-dir ./models
+python train.py --algorithm dqn --obstacles 13 --timesteps 1000000
 ```
 
 ## Installation
@@ -178,13 +176,13 @@ python train.py --timesteps 500000
 
 The trained DQN agent's performance was evaluated quantitatively and qualitatively using the `test.py` script.
 ```bash
-python test.py --model-path ./models/best_model.zip --episodes 50 --obstacles 13 
+python test.py --model-path ./models/final_model_dqn.zip --episodes 50 --obstacles 13 
 ```
 
 ### Recording Gameplay
 To record the agent's gameplay as an MP4 video:
 ```bash
-python record_game.py --model_path ./models/best_model.zip --output gameplay.mp4 --episodes 5 --obstacles 13
+python record_game.py --model_path ./models/final_model_dqn.zip --output gameplay.mp4 --episodes 5 --obstacles 13
 ```
 
 
@@ -197,12 +195,12 @@ The `test_model` function in `test.py` runs the trained agent in the environment
 
 *   **Execution:** The script loads the saved DQN model (`.zip` file).
 *   **Metrics Reported:**
-    *   **Success Rate:** The percentage of episodes where the agent successfully reached the final target location (defined in the script as distance to goal < 0.5 at episode end).
     *   **Average Reward per Episode:** The mean total reward accumulated across the evaluation episodes.
     *   **Average Steps per Episode:** The mean number of steps taken per episode.
+    *   **Average Score per Episode :** The mean score of episodes.
 *   **Example Command:**
     ```bash
-    python test.py --model-path ./models/best_model.zip --model-type dqn --episodes 50 --obstacles 13 
+    python test.py --model-path ./models/final_model_dqn.zip --model-type dqn --episodes 50 --obstacles 13 
     ```
 
 
@@ -215,7 +213,7 @@ Beyond numerical metrics, `test.py` provides tools to visually understand the ag
     *   Using the `--record` flag generates an animated GIF (`navigation_agent.gif`) of a single test episode, clearly showing the agent's movement, obstacle avoidance (or lack thereof), and pathfinding.
     *   **Example Command (Record GIF):**
         ```bash
-        python test.py --model-path ./models/best_model.zip --model-type dqn --episodes 1 --obstacles 13 --record
+        python test.py --model-path ./models/best_model.zip --model-type dqn --episodes 10 --obstacles 13 --record
         ```
 
 2.  **Policy and Value Function Heatmaps (`--visualize-policy`):**

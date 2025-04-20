@@ -206,7 +206,7 @@ The key performance metrics achieved at the end of training are summarized below
 
 *   **Average Score per Episode:** 3.38 ± 2.69  *(The agent successfully reached the target an average of 3.38 times per episode, with a standard deviation of 2.69)*
 *   **Average Reward per Episode:** 152.7 ± 137.3 *(This reflects the cumulative reward considering both goal achievements and penalties.)*
-*   **Average Steps per Episode:** 129.3 ± 87.1*(Indicates how quickly, on average, the agent completed episodes, either by reaching a step limit or colliding.)*
+*   **Average Steps per Episode:** 129.3 ± 87.1 *(Indicates how quickly, on average, the agent completed episodes, either by reaching a step limit or colliding.)*
 
 
 

@@ -61,7 +61,6 @@ The observation provided to the agent is a flattened vector containing key infor
         *   **Relative Obstacle Position (2 values):** The normalized vector from the agent to the obstacle `(obstacle_x - agent_x, obstacle_y - agent_y) / self.size`.
         *   **Obstacle Velocity (2 values):** The normalized velocity of the obstacle `(vx, vy) / self._max_obstacle_vel_norm`.
 *   **Padding:** If there are fewer than `k` obstacles in the environment, or fewer than `k` are found within a reasonable range, the remaining obstacle slots in the state vector are filled with predefined padding values. Typically, this padding represents a distant ([1.0, 1.0] normalized relative position) and stationary ([0.0, 0.0] normalized velocity) obstacle. This ensures the state vector always has a consistent size (`2 + k * 4`).
-*   **No Frame Stacking:** Unlike potential previous versions, this state representation **only includes information from the current timestep**. It does not concatenate states from previous steps. This simplifies the state but requires the agent to infer dynamics (like obstacle movement direction) implicitly through its learned policy or value function over time.
 
 
 ### Action Space

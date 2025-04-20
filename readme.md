@@ -204,11 +204,10 @@ The trained DQN agent's performance was rigorously evaluated using the `test.py`
 
 The key performance metrics achieved at the end of training are summarized below:
 
-*   **Average Score per Episode:** XX.X ± Y.Y  *(The agent successfully reached the target an average of XX.X times per episode, with a standard deviation of Y.Y)*
-*   **Average Reward per Episode:** AA.A ± B.B *(This reflects the cumulative reward considering both goal achievements and penalties.)*
-*   **Average Steps per Episode:** ZZZ.Z ± W.W *(Indicates how quickly, on average, the agent completed episodes, either by reaching a step limit or colliding.)*
+*   **Average Score per Episode:** 3.38 ± 2.69  *(The agent successfully reached the target an average of 3.38 times per episode, with a standard deviation of 2.69)*
+*   **Average Reward per Episode:** 152.7 ± 137.3 *(This reflects the cumulative reward considering both goal achievements and penalties.)*
+*   **Average Steps per Episode:** 129.3 ± 87.1*(Indicates how quickly, on average, the agent completed episodes, either by reaching a step limit or colliding.)*
 
-**(Buraya yukarıdaki gibi kendi test sonuçlarınızı ekleyin)**
 
 
 These results demonstrate the agent's capability to consistently achieve the objective. The learning progress over the 1 million training timesteps is visualized below:
